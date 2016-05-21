@@ -1,5 +1,5 @@
 port module Timer exposing (..)
-import Html exposing (Html, button, div, text, h1, ul, li, a, span)
+import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section)
 import Html.App as Html
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (class, attribute, href)
@@ -96,7 +96,7 @@ update msg model =
     StartTime t -> ({ model | time = 0, startTime = t, state = Inspecting}, Cmd.none)
     Toggle (32, 0) -> -- key down
       case model.state of
-        Running -> (addOldTime { model | state = Waiting}, Cmd.none)
+        Running -> (addOldTime { model | state = Waiting}, Cmd.none) -- TODO: scroll stats to bottom
         Inspecting -> ({ model | state = Running, startTime = model.time + model.startTime, time = 0 }, Cmd.none)
         _ -> donothing
     Toggle (0, 32) -> -- key up
@@ -164,7 +164,9 @@ view model = let
     , a [class "delete", href "#", onClick (DeleteTime i)] [text "x"]
     ]
   in
-  div []
-  [ div [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
-  , div [ class ("oldtimes") ] [ ul [] (List.reverse <| List.indexedMap mapTime model.oldTimes) ]
+  div [class "container"]
+  [ header [] [h1 [] [ text "yyTimer" ] ]
+  , section [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
+  , section [ class ("oldtimes") ] [ ul [] (List.reverse <| List.indexedMap mapTime model.oldTimes) ]
+  , section [ class ("stats") ] [ text "stats here" ]
   ]

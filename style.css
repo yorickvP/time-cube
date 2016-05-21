@@ -1,3 +1,87 @@
- .oldtimes li.dnf {
- 	color: red;
+:root {
+	/* solarized */
+	--color-base03:	#002b36;
+	--color-base02:	#073642;
+	--color-base01:	#586e75;
+	--color-base00:	#657b83;
+	--color-base0:	#839496;
+	--color-base1:	#93a1a1;
+	--color-base2:	#eee8d5;
+	--color-base3:	#fdf6e3;
+	--color-yellow:	#b58900;
+	--color-orange:	#cb4b16;
+	--color-red:	#dc322f;
+	--color-magenta:#d33682;
+	--color-violet:	#6c71c4;
+	--color-blue:	#268bd2;
+	--color-cyan:	#2aa198;
+	--color-green:	#859900;
+	--border-col: var(--color-base02);
+	--topbar-col: var(--color-base2);
+	--bg-col: var(--color-base3);
+	--fg-col: var(--color-base00);
+	--link-col: var(--color-yellow);
+	--running-col: var(--color-blue);
+	--stopped-col: var(--color-green);
+} 
+.oldtimes li.dnf {
+ 	color: var(--color-red);
  }
+.container {
+	border: 1px solid var(--border-col);
+}
+header {
+	border-bottom: 1px solid var(--border-col);
+	background-color: var(--topbar-col);
+	margin-top: 0;
+	padding-top: 0.5em;
+	padding-bottom: 0.5em;
+	flex: 1 100%;
+	text-align: center;
+}
+html, body {
+	background-color: var(--bg-col);
+	color: var(--fg-col);
+}
+a {
+	color: var(--link-col);
+}
+.inspecting, .running {
+	color: var(--running-col);
+}
+.stopped {
+	color: var(--stopped-col);
+}
+.oldtimes {
+	max-height: 10em;
+	overflow-y: auto;
+}
+.oldtimes > ul {
+	margin: 10px 0;
+}
+.oldtimes > ul > li > a {
+	margin-left: 0.3em;
+	visibility: hidden;
+}
+.oldtimes > ul > li:hover > a {
+	visibility: visible;
+}
+.oldtimes > ul > li > a.active {
+	font-weight: bold;
+	visibility: visible;
+}
+.timerstate, .oldtimes, .stats {
+	flex: 1 0;
+}
+.timerstate, .oldtimes {
+	border-right: 1px solid var(--border-col);
+}
+.timerstate {
+	text-align: center;
+	font-size: 2em;
+}
+.container {
+	overflow: hidden;
+	display: flex;
+	flex-flow: row wrap;
+}
