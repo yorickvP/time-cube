@@ -2,13 +2,15 @@ port module Timer exposing (..)
 import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section)
 import Html.App as Html
 import Html.Events exposing (onClick)
-import Html.Attributes exposing (class, attribute, href)
+import Html.Attributes exposing (class, attribute, href, title)
 import Time exposing (Time, second)
 import List
 import String exposing (slice, padRight)
 import Json.Decode as JSOND
 import Json.Encode as JSONE
 import Json.Decode exposing ((:=))
+import Date
+import Date.Format
 -- import Json.Decode as Json
 import Task
 import Result
@@ -214,7 +216,11 @@ view model = let
     a [ class <| "flag" ++ if tm.flag == fl then " active" else ""
       , href "#", onClick (ToggleFlag fl i)] [text txt]
   mapTime : OldTimeID -> OldTime -> Html Msg
-  mapTime i t = li [attribute "data-id" (toString i), class (flagsToClassName t)]
+  mapTime i t = li
+    [ attribute "data-id" (toString i)
+    , class (flagsToClassName t)
+    , title <| Date.Format.format "%d-%m-%Y %H:%M:%S" (Date.fromTime (t.startTime + t.time))
+    ]
     [ span [class "textlabel"] [text <| pretty <| getTimeWithPenalty t]
     , flagElm Penalty2 i t "+2"
     , flagElm DNF i t "DNF"
