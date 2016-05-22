@@ -6,14 +6,20 @@ import Html.Attributes exposing (class, attribute, href)
 import Time exposing (Time, second)
 import List
 import String exposing (slice, padRight)
+import Json.Decode as JSOND
+import Json.Encode as JSONE
+import Json.Decode exposing ((:=))
 -- import Json.Decode as Json
 import Task
+import Result
 
 port keyupdown : ((Int, Int) -> msg) -> Sub msg
 
-main : Program Never
+port setStorage : JSONE.Value -> Cmd msg
+
+main : Program (JSOND.Value)
 main =
-  Html.program
+  Html.programWithFlags
   { init = init
   , view = view
   , update = update
@@ -26,6 +32,45 @@ main =
 type TimerState = Stopped | Running | Inspecting | Waiting
 type Flag = None | Penalty2 | DNF
 type alias OldTimeID = Int
+
+type alias StoredState = {
+  oldTimes : List OldTime
+}
+
+mapintToFlag : Int -> Flag
+mapintToFlag i = case i of
+  1 -> Penalty2
+  2 -> DNF
+  _ -> None
+mapFlagtoint : Flag -> Int
+mapFlagtoint f = case f of
+  None -> 0
+  Penalty2 -> 1
+  DNF -> 2
+deSerialize : JSOND.Decoder StoredState
+deSerialize = JSOND.object1 StoredState ("oldTimes" := JSOND.list deSerializeTime)
+deSerializeTime : JSOND.Decoder OldTime
+deSerializeTime = JSOND.object4 OldTime
+  ("time" := JSOND.float)
+  ("startTime" := JSOND.float)
+  ("comment" := JSOND.string)
+  ("flag" := JSOND.map mapintToFlag JSOND.int)
+
+serialize : StoredState -> JSONE.Value
+serialize state =
+  let
+    serializeTime : OldTime -> JSONE.Value
+    serializeTime t = JSONE.object
+      [ ("time", JSONE.float t.time)
+      , ("startTime", JSONE.float t.startTime)
+      , ("comment", JSONE.string t.comment)
+      , ("flag", JSONE.int <| mapFlagtoint t.flag)
+      ]
+  in
+    JSONE.object [("oldTimes", JSONE.list <| List.map serializeTime state.oldTimes)]
+
+serializeModel : Model -> JSONE.Value
+serializeModel m = serialize <| StoredState m.oldTimes
 
 type alias OldTime = {
   time : Time,
@@ -42,12 +87,20 @@ type alias Model = {
   oldTimes : List OldTime
 }
 
-emptyModel : Model
-emptyModel = Model 0 0 Stopped (15 * second) []
+emptyModel : List OldTime -> Model
+emptyModel oldtimes = Model 0 0 Stopped (15 * second) oldtimes
 
-init : (Model, Cmd Msg)
-init = (emptyModel , Cmd.none)
+init : JSOND.Value -> (Model, Cmd Msg)
+init local_storage =
+  let
+    stored : StoredState
+    stored = Result.withDefault (StoredState []) (JSOND.decodeValue deSerialize local_storage)
+  in
+    (emptyModel stored.oldTimes, Cmd.none)
 
+withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+withSetStorage (model, cmds) =
+  ( model, Cmd.batch [ setStorage <| serializeModel model, cmds ] )
 
 -- UPDATE
 
@@ -96,7 +149,7 @@ update msg model =
     StartTime t -> ({ model | time = 0, startTime = t, state = Inspecting}, Cmd.none)
     Toggle (32, 0) -> -- key down
       case model.state of
-        Running -> (addOldTime { model | state = Waiting}, Cmd.none) -- TODO: scroll stats to bottom
+        Running -> withSetStorage (addOldTime { model | state = Waiting}, Cmd.none) -- TODO: scroll stats to bottom
         Inspecting -> ({ model | state = Running, startTime = model.time + model.startTime, time = 0 }, Cmd.none)
         _ -> donothing
     Toggle (0, 32) -> -- key up
@@ -105,8 +158,8 @@ update msg model =
         Waiting -> ({model | state = Stopped }, Cmd.none)
         _ -> donothing
     Toggle (_, _) -> donothing
-    ToggleFlag flag id -> ({model | oldTimes = setFlag flag id model.oldTimes}, Cmd.none)
-    DeleteTime id -> ({model | oldTimes = rmTime id model.oldTimes}, Cmd.none)
+    ToggleFlag flag id -> withSetStorage ({model | oldTimes = setFlag flag id model.oldTimes}, Cmd.none)
+    DeleteTime id -> withSetStorage ({model | oldTimes = rmTime id model.oldTimes}, Cmd.none)
 
 -- SUBSCRIPTIONS
 subscriptions : Model -> Sub Msg
