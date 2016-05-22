@@ -22,5 +22,11 @@ window.onkeyup = function(event) {
 thingy.ports.setStorage.subscribe(function(state) {
     localStorage.setItem('timer-state', JSON.stringify(state));
 });
+thingy.ports.scrollBottom.subscribe(function(selector) {
+	setTimeout(function() {
+		var s = document.querySelector(selector);
+		s.scrollTop = s.scrollHeight;
+	}, 50);
+});
 </script>
 </html>

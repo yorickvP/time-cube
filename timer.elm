@@ -16,6 +16,7 @@ import Result
 port keyupdown : ((Int, Int) -> msg) -> Sub msg
 
 port setStorage : JSONE.Value -> Cmd msg
+port scrollBottom : String -> Cmd msg
 
 main : Program (JSOND.Value)
 main =
@@ -139,6 +140,9 @@ setFlag fl id otm =
 rmTime : OldTimeID -> List OldTime -> List OldTime
 rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 
+scrollOldTimes : Cmd Msg
+scrollOldTimes = scrollBottom ".oldtimes"
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   let
@@ -149,7 +153,7 @@ update msg model =
     StartTime t -> ({ model | time = 0, startTime = t, state = Inspecting}, Cmd.none)
     Toggle (32, 0) -> -- key down
       case model.state of
-        Running -> withSetStorage (addOldTime { model | state = Waiting}, Cmd.none) -- TODO: scroll stats to bottom
+        Running -> withSetStorage (addOldTime { model | state = Waiting}, scrollOldTimes)
         Inspecting -> ({ model | state = Running, startTime = model.time + model.startTime, time = 0 }, Cmd.none)
         _ -> donothing
     Toggle (0, 32) -> -- key up
