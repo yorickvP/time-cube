@@ -6,18 +6,13 @@ import Html.Attributes exposing (class, attribute, href, title)
 import Time exposing (Time, second)
 import List
 import String exposing (slice, padRight)
-import Json.Decode as JSOND
-import Json.Encode as JSONE
-import Json.Decode exposing ((:=))
 import Date
 import Date.Format
--- import Json.Decode as Json
 import Task
-import Result
 
 port keyupdown : ((Int, Int) -> msg) -> Sub msg
 
-port setStorage : JSONE.Value -> Cmd msg
+port setStorage : StoredState -> Cmd msg
 port scrollBottom : String -> Cmd msg
 
 type alias ScrambleType =
@@ -29,7 +24,7 @@ port scrambleReq : ScrambleType -> Cmd msg
 port scrambles : (String -> msg) -> Sub msg
 
 
-main : Program (JSOND.Value)
+main : Program (Maybe StoredState)
 main =
   Html.programWithFlags
   { init = init
@@ -46,7 +41,7 @@ type Flag = None | Penalty2 | DNF
 type alias OldTimeID = Int
 
 type alias StoredState = {
-  oldTimes : List OldTime
+  oldTimes : List SerialOldTime
 }
 
 mapintToFlag : Int -> Flag
@@ -59,40 +54,9 @@ mapFlagtoint f = case f of
   None -> 0
   Penalty2 -> 1
   DNF -> 2
-deSerialize : JSOND.Decoder StoredState
-deSerialize = JSOND.object1 StoredState ("oldTimes" := JSOND.list deSerializeTime)
-deSerializeTime : JSOND.Decoder OldTime
-deSerializeTime = JSOND.object6 OldTime
-  ("time" := JSOND.float)
-  ("startTime" := JSOND.float)
-  ("comment" := JSOND.string)
-  ("flag" := JSOND.map mapintToFlag JSOND.int)
-  -- todo: either null?
-  ("scramble" := JSOND.maybe JSOND.string)
-  ("scrambleType" := JSOND.maybe (JSOND.tuple2 ScrambleType JSOND.int JSOND.string))
 
-maybeJSON : (x -> JSONE.Value) -> Maybe x -> JSONE.Value
-maybeJSON enc m = case m of
-  Nothing -> JSONE.null
-  Just val -> enc val
-
-serialize : StoredState -> JSONE.Value
-serialize state =
-  let
-    serializeTime : OldTime -> JSONE.Value
-    serializeTime t = JSONE.object
-      [ ("time", JSONE.float t.time)
-      , ("startTime", JSONE.float t.startTime)
-      , ("comment", JSONE.string t.comment)
-      , ("flag", JSONE.int <| mapFlagtoint t.flag)
-      , ("scramble", maybeJSON JSONE.string t.scramble)
-      , ("scrambleType", maybeJSON (\x -> JSONE.list [JSONE.int x.len, JSONE.string x.scrType]) t.scrambleType)
-      ]
-  in
-    JSONE.object [("oldTimes", JSONE.list <| List.map serializeTime state.oldTimes)]
-
-serializeModel : Model -> JSONE.Value
-serializeModel m = serialize <| StoredState m.oldTimes
+serializeModel : Model -> StoredState
+serializeModel m = StoredState <| List.map serializeTime m.oldTimes
 
 type alias OldTime = {
   time : Time,
@@ -103,19 +67,19 @@ type alias OldTime = {
   scrambleType : Maybe ScrambleType
 }
 
---type alias SerialOldTime = {
---  time : Time,
---  startTime : Time,
---  comment : String,
---  flag : Int,
---  scramble : Maybe String,
---  scrambleType : Maybe ScrambleType
---}
+type alias SerialOldTime = {
+  time : Time,
+  startTime : Time,
+  comment : String,
+  flag : Int,
+  scramble : Maybe String,
+  scrambleType : Maybe ScrambleType
+}
 
---serializeTime : OldTime -> SerialOldTime
---serializeTime t = {t | flag = mapFlagtoint t.flag}
---deserializeTime : SerialOldTime -> OldTime
---deserializeTime t = {t | flag = mapintToFlag t.flag}
+serializeTime : OldTime -> SerialOldTime
+serializeTime t = {t | flag = mapFlagtoint t.flag}
+deserializeTime : SerialOldTime -> OldTime
+deserializeTime t = {t | flag = mapintToFlag t.flag}
 
 type alias Model = {
   time : Time,
@@ -127,16 +91,16 @@ type alias Model = {
   oldTimes : List OldTime
 }
 
-emptyModel : List OldTime -> Model
-emptyModel oldtimes = Model 0 0 Stopped (15 * second) Nothing (ScrambleType 0 "333") oldtimes
+emptyModel : StoredState -> Model
+emptyModel st = Model 0 0 Stopped (15 * second) Nothing (ScrambleType 0 "333") (List.map deserializeTime st.oldTimes)
 
-init : JSOND.Value -> (Model, Cmd Msg)
+init : Maybe StoredState -> (Model, Cmd Msg)
 init local_storage =
   let
     stored : StoredState
-    stored = Result.withDefault (StoredState []) (JSOND.decodeValue deSerialize local_storage)
+    stored = Maybe.withDefault (StoredState []) local_storage
   in
-    withGetScramble (emptyModel stored.oldTimes, Cmd.none)
+    withGetScramble (emptyModel stored, Cmd.none)
 
 withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 withSetStorage (model, cmds) =
