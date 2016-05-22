@@ -20,6 +20,15 @@ port keyupdown : ((Int, Int) -> msg) -> Sub msg
 port setStorage : JSONE.Value -> Cmd msg
 port scrollBottom : String -> Cmd msg
 
+type alias ScrambleType =
+  { len : Int
+  , scrType : String 
+  }
+
+port scrambleReq : ScrambleType -> Cmd msg
+port scrambles : (String -> msg) -> Sub msg
+
+
 main : Program (JSOND.Value)
 main =
   Html.programWithFlags
@@ -53,11 +62,19 @@ mapFlagtoint f = case f of
 deSerialize : JSOND.Decoder StoredState
 deSerialize = JSOND.object1 StoredState ("oldTimes" := JSOND.list deSerializeTime)
 deSerializeTime : JSOND.Decoder OldTime
-deSerializeTime = JSOND.object4 OldTime
+deSerializeTime = JSOND.object6 OldTime
   ("time" := JSOND.float)
   ("startTime" := JSOND.float)
   ("comment" := JSOND.string)
   ("flag" := JSOND.map mapintToFlag JSOND.int)
+  -- todo: either null?
+  ("scramble" := JSOND.maybe JSOND.string)
+  ("scrambleType" := JSOND.maybe (JSOND.tuple2 ScrambleType JSOND.int JSOND.string))
+
+maybeJSON : (x -> JSONE.Value) -> Maybe x -> JSONE.Value
+maybeJSON enc m = case m of
+  Nothing -> JSONE.null
+  Just val -> enc val
 
 serialize : StoredState -> JSONE.Value
 serialize state =
@@ -68,6 +85,8 @@ serialize state =
       , ("startTime", JSONE.float t.startTime)
       , ("comment", JSONE.string t.comment)
       , ("flag", JSONE.int <| mapFlagtoint t.flag)
+      , ("scramble", maybeJSON JSONE.string t.scramble)
+      , ("scrambleType", maybeJSON (\x -> JSONE.list [JSONE.int x.len, JSONE.string x.scrType]) t.scrambleType)
       ]
   in
     JSONE.object [("oldTimes", JSONE.list <| List.map serializeTime state.oldTimes)]
@@ -79,19 +98,37 @@ type alias OldTime = {
   time : Time,
   startTime : Time,
   comment : String,
-  flag : Flag
+  flag : Flag,
+  scramble : Maybe String,
+  scrambleType : Maybe ScrambleType
 }
+
+--type alias SerialOldTime = {
+--  time : Time,
+--  startTime : Time,
+--  comment : String,
+--  flag : Int,
+--  scramble : Maybe String,
+--  scrambleType : Maybe ScrambleType
+--}
+
+--serializeTime : OldTime -> SerialOldTime
+--serializeTime t = {t | flag = mapFlagtoint t.flag}
+--deserializeTime : SerialOldTime -> OldTime
+--deserializeTime t = {t | flag = mapintToFlag t.flag}
 
 type alias Model = {
   time : Time,
   startTime : Time,
   state : TimerState,
   totalInspection : Time,
+  curScramble : Maybe String,
+  scrambleType : ScrambleType,
   oldTimes : List OldTime
 }
 
 emptyModel : List OldTime -> Model
-emptyModel oldtimes = Model 0 0 Stopped (15 * second) oldtimes
+emptyModel oldtimes = Model 0 0 Stopped (15 * second) Nothing (ScrambleType 0 "333") oldtimes
 
 init : JSOND.Value -> (Model, Cmd Msg)
 init local_storage =
@@ -99,11 +136,17 @@ init local_storage =
     stored : StoredState
     stored = Result.withDefault (StoredState []) (JSOND.decodeValue deSerialize local_storage)
   in
-    (emptyModel stored.oldTimes, Cmd.none)
+    withGetScramble (emptyModel stored.oldTimes, Cmd.none)
 
 withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 withSetStorage (model, cmds) =
   ( model, Cmd.batch [ setStorage <| serializeModel model, cmds ] )
+
+
+withGetScramble : (Model, Cmd Msg) -> (Model, Cmd Msg)
+withGetScramble (model, cmds) =
+  (model, Cmd.batch [ scrambleReq model.scrambleType, cmds ])
+
 
 -- UPDATE
 
@@ -113,6 +156,7 @@ type Msg
   | Toggle (Int, Int)
   | ToggleFlag Flag OldTimeID
   | DeleteTime OldTimeID
+  | Scramble String
 
 getCurTime : (Time -> Msg) -> Cmd Msg
 getCurTime m = Task.perform m m Time.now
@@ -124,7 +168,7 @@ addOldTime : Model -> Model
 addOldTime m =
   let
     oldTime : OldTime
-    oldTime = OldTime m.time m.startTime "" None
+    oldTime = OldTime m.time m.startTime "" None m.curScramble (Just m.scrambleType)
   in
     { m | oldTimes = oldTime :: m.oldTimes }
 
@@ -155,7 +199,7 @@ update msg model =
     StartTime t -> ({ model | time = 0, startTime = t, state = Inspecting}, Cmd.none)
     Toggle (32, 0) -> -- key down
       case model.state of
-        Running -> withSetStorage (addOldTime { model | state = Waiting}, scrollOldTimes)
+        Running -> withGetScramble <| withSetStorage (addOldTime { model | state = Waiting}, scrollOldTimes)
         Inspecting -> ({ model | state = Running, startTime = model.time + model.startTime, time = 0 }, Cmd.none)
         _ -> donothing
     Toggle (0, 32) -> -- key up
@@ -166,13 +210,14 @@ update msg model =
     Toggle (_, _) -> donothing
     ToggleFlag flag id -> withSetStorage ({model | oldTimes = setFlag flag id model.oldTimes}, Cmd.none)
     DeleteTime id -> withSetStorage ({model | oldTimes = rmTime id model.oldTimes}, Cmd.none)
+    Scramble scr -> ({model | curScramble = Just scr}, Cmd.none)
 
 -- SUBSCRIPTIONS
 subscriptions : Model -> Sub Msg
 subscriptions m = let
   shouldTick = ((m.state == Running) || (m.state == Inspecting))
  in
-  Sub.batch [ keyupdown Toggle, 
+  Sub.batch [ keyupdown Toggle, scrambles Scramble,
  (if shouldTick then Time.every (second / 100) Tick
  else Sub.none)
  ]
@@ -228,7 +273,9 @@ view model = let
     ]
   in
   div [class "container"]
-  [ header [] [h1 [] [ text "yyTimer" ] ]
+  [ header []
+    [ h1 [] [ text "yyTimer" ]
+    , div [class "scramble"] [ text <| Maybe.withDefault "loading" model.curScramble ] ]
   , section [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
   , section [ class ("oldtimes") ] [ ul [] (List.reverse <| List.indexedMap mapTime model.oldTimes) ]
   , section [ class ("stats") ] [ text "stats here" ]

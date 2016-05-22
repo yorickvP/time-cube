@@ -28,5 +28,12 @@ thingy.ports.scrollBottom.subscribe(function(selector) {
 		s.scrollTop = s.scrollHeight;
 	}, 50);
 });
+var scrambleworker = new Worker("scramble.js");
+thingy.ports.scrambleReq.subscribe(function({len, scrType: type}) {
+	scrambleworker.postMessage({len, type});
+});
+scrambleworker.onmessage = ({data}) => {
+	thingy.ports.scrambles.send(data.scramble);
+};
 </script>
 </html>
