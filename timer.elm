@@ -15,11 +15,6 @@ port keyupdown : ((Int, Int) -> msg) -> Sub msg
 port setStorage : StoredState -> Cmd msg
 port scrollBottom : String -> Cmd msg
 
-type alias ScrambleType =
-  { len : Int
-  , scrType : String 
-  }
-
 port scrambleReq : ScrambleType -> Cmd msg
 port scrambles : (String -> msg) -> Sub msg
 
@@ -76,6 +71,13 @@ type alias SerialOldTime = {
   scrambleType : Maybe ScrambleType
 }
 
+
+type alias ScrambleType =
+  { len : Int
+  , scrType : String 
+  }
+
+
 serializeTime : OldTime -> SerialOldTime
 serializeTime t = {t | flag = mapFlagtoint t.flag}
 deserializeTime : SerialOldTime -> OldTime
@@ -102,14 +104,14 @@ init local_storage =
   in
     withGetScramble (emptyModel stored, Cmd.none)
 
-withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-withSetStorage (model, cmds) =
-  ( model, Cmd.batch [ setStorage <| serializeModel model, cmds ] )
+withCmd : (Model -> Cmd Msg) -> (( Model, Cmd Msg ) -> ( Model, Cmd Msg ))
+withCmd makeCmd (model, cmds) = (model, Cmd.batch [makeCmd model, cmds])
 
+withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+withSetStorage = withCmd (setStorage << serializeModel)
 
 withGetScramble : (Model, Cmd Msg) -> (Model, Cmd Msg)
-withGetScramble (model, cmds) =
-  (model, Cmd.batch [ scrambleReq model.scrambleType, cmds ])
+withGetScramble = withCmd (scrambleReq << (.scrambleType))
 
 
 -- UPDATE
@@ -124,9 +126,6 @@ type Msg
 
 getCurTime : (Time -> Msg) -> Cmd Msg
 getCurTime m = Task.perform m m Time.now
-
-spacekey : Int
-spacekey = 13
 
 addOldTime : Model -> Model
 addOldTime m =
@@ -153,38 +152,55 @@ rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 scrollOldTimes : Cmd Msg
 scrollOldTimes = scrollBottom ".oldtimes"
 
+const : a -> b -> a
+const a b = a
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   let
-    donothing = (model, Cmd.none)
+    upM m = (m, Cmd.none)
+    donothing = upM model
+    withScroll = withCmd <| const scrollOldTimes
+    withGetTime x = withCmd <| const (getCurTime x)
   in
   case msg of
-    Tick t -> ({ model | time = t - model.startTime }, Cmd.none)
-    StartTime t -> ({ model | time = 0, startTime = t, state = Inspecting}, Cmd.none)
+    Tick t ->
+      upM { model | time = t - model.startTime }
+    StartTime t ->
+      upM { model | time = 0, startTime = t, state = Inspecting}
     Toggle (32, 0) -> -- key down
       case model.state of
-        Running -> withGetScramble <| withSetStorage (addOldTime { model | state = Waiting}, scrollOldTimes)
-        Inspecting -> ({ model | state = Running, startTime = model.time + model.startTime, time = 0 }, Cmd.none)
+        Running ->
+          withGetScramble <| withSetStorage <| withScroll <| upM <| addOldTime { model | state = Waiting }
+        Inspecting ->
+          upM { model | state = Running, startTime = model.time + model.startTime, time = 0 }
         _ -> donothing
     Toggle (0, 32) -> -- key up
       case model.state of
-        Stopped -> (model, getCurTime StartTime)
-        Waiting -> ({model | state = Stopped }, Cmd.none)
+        Stopped -> withGetTime StartTime <| upM model
+        Waiting -> upM {model | state = Stopped }
         _ -> donothing
     Toggle (_, _) -> donothing
-    ToggleFlag flag id -> withSetStorage ({model | oldTimes = setFlag flag id model.oldTimes}, Cmd.none)
-    DeleteTime id -> withSetStorage ({model | oldTimes = rmTime id model.oldTimes}, Cmd.none)
-    Scramble scr -> ({model | curScramble = Just scr}, Cmd.none)
+    ToggleFlag flag id ->
+      withSetStorage <| upM {model | oldTimes = setFlag flag id model.oldTimes}
+    DeleteTime id ->
+      withSetStorage <| upM {model | oldTimes = rmTime id model.oldTimes}
+    Scramble scr ->
+      upM {model | curScramble = Just scr}
 
 -- SUBSCRIPTIONS
 subscriptions : Model -> Sub Msg
-subscriptions m = let
+subscriptions m =
+ let
   shouldTick = ((m.state == Running) || (m.state == Inspecting))
  in
-  Sub.batch [ keyupdown Toggle, scrambles Scramble,
- (if shouldTick then Time.every (second / 100) Tick
- else Sub.none)
- ]
+  Sub.batch
+    [ keyupdown Toggle
+    , scrambles Scramble
+    , (if shouldTick then
+        Time.every (second / 100) Tick
+      else Sub.none)
+    ]
 -- VIEW
 
 getRunTime : Model -> Float
