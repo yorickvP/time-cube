@@ -11,13 +11,6 @@
 var storedState = localStorage.getItem('timer-state');
 
 var thingy = Elm.Timer.fullscreen(storedState ? JSON.parse(storedState) : null);
-// firefox 9.0.1 bugfix
-window.onkeydown = function(event) {
-	thingy.ports.keyupdown.send([event.keyCode, 0]);
-};
-window.onkeyup = function(event) {
-	thingy.ports.keyupdown.send([0, event.keyCode]);
-};
 
 thingy.ports.setStorage.subscribe(function(state) {
     localStorage.setItem('timer-state', JSON.stringify(state));
