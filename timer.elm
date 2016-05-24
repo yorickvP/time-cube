@@ -181,12 +181,12 @@ pretty time =
   let x = (toFloat <| floor (time / 10)) / 100
   in toPrecision 2 x
  
-viewStats : Model -> Html Msg
-viewStats model =
+viewStats : History.Model -> Html Msg
+viewStats history =
   let
     renderTimeSD : (Time, Float) -> String
     renderTimeSD (t, sd) = (pretty t) ++ " (σ=" ++ (toPrecision 2 sd) ++ ")"
-    st = History.getStats model.history
+    st = History.getStats history
     stat : String -> String -> Html Msg
     stat label content = div [ class "stat"] [
         span [class "stat_left"] [text label], span [] [text content]]
@@ -227,5 +227,5 @@ view model = let
     , div [class "scramble"] [ text <| Maybe.withDefault "loading" model.curScramble ] ]
   , section [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
   , Html.map HistoryMsg (Html.lazy History.view model.history)
-  , Html.lazy viewStats model
+  , Html.lazy viewStats model.history
   ]
