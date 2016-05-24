@@ -1,4 +1,4 @@
-port module History exposing (Model, SerialModel, serialize, deserialize, update, view, Msg, empty, addTime)
+port module History exposing (Model, SerialModel, serialize, deserialize, update, view, Msg, empty, addTime, getStats)
 
 import Time exposing (Time, second)
 import Html exposing (Html, text, ul, li, a, span, section)
@@ -98,6 +98,82 @@ update msg model =
         (setFlag flag id model, Cmd.none)
     DeleteTime id ->
         (rmTime id model, Cmd.none)
+
+
+type alias Stats =
+  { total : Int
+  , totalFin : Int
+  , best : Maybe Time
+  , worst : Maybe Time
+  , average : Maybe (Time, Float) -- SD
+  , mean : Maybe Time
+  , averages : List (Int, (Time, Float), (Time, Float))
+  }
+
+trimOutlying : List comparable -> List comparable
+trimOutlying list =
+    let
+        length = List.length list
+        sorted = List.sort list
+        trim = ceiling (toFloat length / 20.0)
+        trimmed = List.take (length - (2 * trim)) (List.drop trim sorted)
+    in trimmed
+
+average : List Time -> Time -- possible div/0
+average times = List.sum times / (toFloat <| List.length times)
+
+getAvgSD : List Time -> Maybe (Time, Float)
+getAvgSD times =
+    if List.length times < 3 then Nothing
+    else let
+        trimmed = trimOutlying times
+        avg = average trimmed
+        variance = average <| List.map (\x -> ((abs (x - avg)) / Time.second) ^ 2) trimmed
+        sd = sqrt variance
+    in Just (avg, sd)
+
+mapMin : (a -> comparable) -> List a -> Maybe a
+mapMin fun = List.head << List.sortBy fun
+
+mapWithN : Int -> (List x -> y) -> List x -> List y
+mapWithN n fun list =
+  let
+    nl = List.take n list
+  in
+    if (List.length nl) < n then []
+    else (fun nl) :: (mapWithN n fun (List.drop 1 list))
+
+getMaybes : List (Maybe a) -> List a
+getMaybes = List.filterMap identity
+
+getStats : Model -> Stats
+getStats model = let
+  notDNF = List.filter (.flag >> (/=) DNF) model
+  times = List.map getTimeWithPenalty notDNF
+  getAverage : Int -> Maybe (Int, (Time, Float))
+  getAverage n = if List.length times < n then Nothing else
+    Maybe.map ((,) n) (getAvgSD (List.take n times))
+  getBestAvg : Int -> Maybe (Int, (Time, Float))
+  getBestAvg n = if List.length times < n then Nothing else
+    Maybe.map ((,) n) <|
+    mapMin (fst) <| getMaybes <| mapWithN n getAvgSD times
+ in
+  { total = List.length model
+  , totalFin = List.length times
+  , best = List.minimum <| times
+  , worst = List.maximum <| times
+  , mean =
+        if List.isEmpty times
+            then Nothing
+            else Just <| average times
+  , average = getAvgSD times
+  , averages = getMaybes
+    [ getAverage 5 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b))  <| getBestAvg 5)
+    , getAverage 12 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b)) <| getBestAvg 12)
+    , getAverage 50 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b)) <| getBestAvg 50)
+    , getAverage 100 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b))<| getBestAvg 100)
+    ]
+  }
 
 -- view
 

@@ -53,7 +53,7 @@ a {
 	color: var(--stopped-col);
 }
 .oldtimes {
-	max-height: 10em;
+	max-height: 50vh;
 	overflow-y: auto;
 }
 .oldtimes > ul {
@@ -84,4 +84,17 @@ a {
 	overflow: hidden;
 	display: flex;
 	flex-flow: row wrap;
+}
+
+.stat_hdr {
+	font-weight: bold;
+	padding-left: 1em;
+	border-bottom: 1px solid black;
+}
+.stat_left {
+	width: 5em;
+	float: left;
+}
+.stat_left:after {
+	content: ":";
 }

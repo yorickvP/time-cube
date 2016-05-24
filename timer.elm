@@ -1,6 +1,7 @@
 port module Timer exposing (main, setStorage, scrollBottom, scrambleReq, scrambles)
 import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section)
 import Html.App as Html
+import Html.Lazy as Html
 import Html.Attributes exposing (class, attribute, href, title)
 import Time exposing (Time, second)
 import String exposing (slice, padRight)
@@ -171,10 +172,42 @@ getInspectTime m = ceiling ((m.totalInspection - m.time) / 1000)
 floatPart : Float -> Float
 floatPart i = i - (toFloat <| truncate i)
 
+toPrecision : Int -> Float -> String
+toPrecision n x =
+  (toString <| truncate x) ++ "." ++ (padRight n '0' <| slice 2 (2+n) <| toString <| floatPart x)
+
 pretty : Time -> String
 pretty time =
   let x = (toFloat <| floor (time / 10)) / 100
-  in (toString <| truncate x) ++ "." ++ (padRight 2 '0' <| slice 2 4 <| toString <| floatPart x)
+  in toPrecision 2 x
+ 
+viewStats : Model -> Html Msg
+viewStats model =
+  let
+    renderTimeSD : (Time, Float) -> String
+    renderTimeSD (t, sd) = (pretty t) ++ " (σ=" ++ (toPrecision 2 sd) ++ ")"
+    st = History.getStats model.history
+    stat : String -> String -> Html Msg
+    stat label content = div [ class "stat"] [
+        span [class "stat_left"] [text label], span [] [text content]]
+    statSec : String -> List (String, String) -> Html Msg 
+    statSec head rows = div [class "stat_group"]
+      ([ div [ class "stat_hdr" ] [text head] ] ++
+        List.map (uncurry stat) rows)
+    mapAvg : (Int, (Time, Float), (Time, Float)) -> Html Msg
+    mapAvg (avgn, cur, best) =
+      statSec ("avg" ++ toString avgn)
+      [ ("current", renderTimeSD cur)
+      , ("best", renderTimeSD best)]
+  in
+  section [ class ("stats") ]
+  ([ header [] [text <| "stats (" ++ (toString st.totalFin) ++ "/" ++ (toString st.total) ++ ")"]
+  , statSec "times"
+    (List.filterMap identity
+    [ Maybe.map (\avg  -> ("average", renderTimeSD avg)) st.average
+    , Maybe.map (\mean -> ("mean", pretty mean)) st.mean -- pretty mean
+    ])
+  ] ++ (List.map mapAvg st.averages))
 
 view : Model -> Html Msg
 view model = let
@@ -193,6 +226,6 @@ view model = let
     [ h1 [] [ text "yyTimer" ]
     , div [class "scramble"] [ text <| Maybe.withDefault "loading" model.curScramble ] ]
   , section [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
-  , Html.map HistoryMsg (History.view model.history)
-  , section [ class ("stats") ] [ text "stats here" ]
+  , Html.map HistoryMsg (Html.lazy History.view model.history)
+  , Html.lazy viewStats model
   ]
