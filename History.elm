@@ -146,6 +146,10 @@ mapWithN n fun list =
 getMaybes : List (Maybe a) -> List a
 getMaybes = List.filterMap identity
 
+-- impossible to do this generically for now
+maybe_lift2 : (e -> f -> g) -> Maybe e -> Maybe f -> Maybe g
+maybe_lift2 fun a b = a `Maybe.andThen` (\firsta -> b `Maybe.andThen` (Just << fun firsta))
+
 getStats : Model -> Stats
 getStats model = let
   notDNF = List.filter (.flag >> (/=) DNF) model
@@ -157,6 +161,7 @@ getStats model = let
   getBestAvg n = if List.length times < n then Nothing else
     Maybe.map ((,) n) <|
     mapMin (fst) <| getMaybes <| mapWithN n getAvgSD times
+  combineTuples (x, a) (y, b) = (x, a, b)
  in
   { total = List.length model
   , totalFin = List.length times
@@ -168,10 +173,10 @@ getStats model = let
             else Just <| average times
   , average = getAvgSD times
   , averages = getMaybes
-    [ getAverage 5 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b))  <| getBestAvg 5)
-    , getAverage 12 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b)) <| getBestAvg 12)
-    , getAverage 50 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b)) <| getBestAvg 50)
-    , getAverage 100 `Maybe.andThen` (\(x, a) -> Maybe.map (\(y, b) -> (x, a, b))<| getBestAvg 100)
+    [ maybe_lift2 combineTuples (getAverage 5) (getBestAvg 5)
+    , maybe_lift2 combineTuples (getAverage 12) (getBestAvg 12)
+    , maybe_lift2 combineTuples (getAverage 50) (getBestAvg 50)
+    , maybe_lift2 combineTuples (getAverage 100) (getBestAvg 100)
     ]
   }
 
