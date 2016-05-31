@@ -8,6 +8,8 @@ import List
 import String exposing (slice, padRight)
 import Date
 import Date.Format
+import Scrambles
+
 
 
 -- MODEL
@@ -28,7 +30,7 @@ type alias OldTime = {
   comment : String,
   flag : Flag,
   scramble : Maybe String,
-  scrambleType : Maybe ScrambleType
+  scrambleType : Scrambles.ScrType
 }
 
 type alias SerialOldTime = {
@@ -37,14 +39,9 @@ type alias SerialOldTime = {
   comment : String,
   flag : Int,
   scramble : Maybe String,
-  scrambleType : Maybe ScrambleType
+  scrambleType : Scrambles.ScrType -- load from scrambles array?
 }
 
-
-type alias ScrambleType =
-  { len : Int
-  , scrType : String 
-  }
 type Flag = None | Penalty2 | DNF
 type alias OldTimeID = Int
 type alias Model = List OldTime
@@ -87,9 +84,9 @@ rmTime : OldTimeID -> List OldTime -> List OldTime
 rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 
   --  oldTime = History.OldTime m.time m.startTime "" History.None m.curScramble (Just m.scrambleType)
-addTime : {time : Time, startTime: Time, scramble : Maybe String, scrambleType : ScrambleType} -> Model -> Model
+addTime : {time : Time, startTime: Time, scramble : Maybe String, scrambleType : Scrambles.ScrType} -> Model -> Model
 addTime tm =
-    let ot = OldTime tm.time tm.startTime "" None tm.scramble (Just tm.scrambleType)
+    let ot = OldTime tm.time tm.startTime "" None tm.scramble tm.scrambleType
     in (::) ot
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =

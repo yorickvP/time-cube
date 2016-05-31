@@ -22,7 +22,7 @@ thingy.ports.scrollBottom.subscribe(function(selector) {
 	}, 50);
 });
 var scrambleworker = new Worker("scramble.js");
-thingy.ports.scrambleReq.subscribe(function({len, scrType: type}) {
+thingy.ports.scrambleReq.subscribe(function({len, val: type}) {
 	scrambleworker.postMessage({len, type});
 });
 scrambleworker.onmessage = ({data}) => {

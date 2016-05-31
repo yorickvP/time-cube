@@ -1,19 +1,28 @@
 port module Timer exposing (main, setStorage, scrollBottom, scrambleReq, scrambles)
-import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section)
+import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section, select, optgroup, option)
 import Html.App as Html
 import Html.Lazy as Html
-import Html.Attributes exposing (class, attribute, href, title)
+import Html.Attributes exposing (class, attribute, href, title, value, selected)
+import Html.Events as Html
 import Time exposing (Time, second)
 import String exposing (slice, padRight)
 import Task
 import Keyboard
+import Json.Decode as Json
+
+import Scrambles
 import History
 
+label : String -> Html.Attribute a
+label = attribute "label"
+
+onChange : (String -> a) -> Html.Attribute a
+onChange tg = Html.on "change" (Json.map tg Html.targetValue)
 
 port setStorage : SerialModel -> Cmd msg
 port scrollBottom : String -> Cmd msg
 
-port scrambleReq : ScrambleType -> Cmd msg
+port scrambleReq : Scrambles.ScrType -> Cmd msg
 port scrambles : (String -> msg) -> Sub msg
 
 
@@ -31,17 +40,19 @@ main =
 -- waiting is a hack for the time between keyup and keydown, really
 type TimerState = Stopped | Running | Inspecting | Waiting
 type alias SerialModel = {
-  oldTimes : History.SerialModel
+    oldTimes : History.SerialModel
+  , scrType : String
 }
 
+(<$>) : (a -> b) -> Maybe a -> Maybe b
+(<$>) = Maybe.map
+
+(<**>) : Maybe a -> (a -> b) -> Maybe b
+(<**>) = flip (<$>)
+
 serialize : Model -> SerialModel
-serialize m = SerialModel <| History.serialize m.history
+serialize m = SerialModel (History.serialize m.history) (m.scrambleType.val)
 
-
-type alias ScrambleType =
-  { len : Int
-  , scrType : String 
-  }
 
 type alias Model = {
   time : Time,
@@ -49,15 +60,16 @@ type alias Model = {
   state : TimerState,
   totalInspection : Time,
   curScramble : Maybe String,
-  scrambleType : ScrambleType,
+  scrambleType : Scrambles.ScrType,
   history : History.Model
 }
 
+
 deserialize : SerialModel -> Model
-deserialize st = Model 0 0 Stopped (15 * second) Nothing (ScrambleType 0 "333") (History.deserialize st.oldTimes)
+deserialize st = Model 0 0 Stopped (15 * second) Nothing (Scrambles.deserialize st.scrType) (History.deserialize st.oldTimes)
 
 empty : SerialModel
-empty = SerialModel History.empty
+empty = SerialModel History.empty Scrambles.empty
 
 init : Maybe SerialModel -> (Model, Cmd Msg)
 init local_storage =
@@ -74,7 +86,7 @@ withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 withSetStorage = withCmd (setStorage << serialize)
 
 withGetScramble : (Model, Cmd Msg) -> (Model, Cmd Msg)
-withGetScramble = withCmd (scrambleReq << (.scrambleType))
+withGetScramble = withCmd <| scrambleReq << (.scrambleType)
 
 
 -- UPDATE
@@ -86,6 +98,7 @@ type Msg
   | StartTime Time
   | Space UpDown
   | HistoryMsg History.Msg
+  | ChangeScramble String
   | Scramble String
 
 getCurTime : (Time -> Msg) -> Cmd Msg
@@ -140,6 +153,7 @@ update msg model =
         withSetStorage <| ({model | history = newhist}, Cmd.map HistoryMsg histmsg)
     Scramble scr ->
       upM {model | curScramble = Just scr}
+    ChangeScramble str -> donothing
 
 keyupdown : UpDown -> Int -> Msg
 keyupdown updown keycode =
@@ -180,7 +194,21 @@ pretty : Time -> String
 pretty time =
   let x = (toFloat <| floor (time / 10)) / 100
   in toPrecision 2 x
- 
+
+scramblePicker : Scrambles.ScrType -> Html Msg
+scramblePicker x =
+  let
+    curGroup = Maybe.withDefault "" <| fst <$> Scrambles.lookup x.val
+    first : List Scrambles.ScrType -> String
+    first lst = Maybe.withDefault "" <| List.head lst <**> .val
+  in
+  select [onChange ChangeScramble] (List.map (\{name, content} ->
+    optgroup []
+    (List.map (\(name, opt) ->
+      option [selected (curGroup == name), label (first opt)] [text name]
+    ) content
+  )) Scrambles.scrambles)
+
 viewStats : History.Model -> Html Msg
 viewStats history =
   let
@@ -204,8 +232,10 @@ viewStats history =
   ([ header [] [text <| "stats (" ++ (toString st.totalFin) ++ "/" ++ (toString st.total) ++ ")"]
   , statSec "times"
     (List.filterMap identity
-    [ Maybe.map (\avg  -> ("average", renderTimeSD avg)) st.average
-    , Maybe.map (\mean -> ("mean", pretty mean)) st.mean -- pretty mean
+    [ ((,) "best" << pretty) <$> st.best
+    , ((,) "worst" << pretty) <$> st.worst
+    , ((,) "average" << renderTimeSD) <$> st.average
+    , ((,) "mean" << pretty) <$> st.mean
     ])
   ] ++ (List.map mapAvg st.averages))
 
@@ -224,7 +254,10 @@ view model = let
   div [class "container"]
   [ header []
     [ h1 [] [ text "yyTimer" ]
-    , div [class "scramble"] [ text <| Maybe.withDefault "loading" model.curScramble ] ]
+    , div [class "scramble"] [
+      text <| Maybe.withDefault "loading" model.curScramble
+    , scramblePicker model.scrambleType
+      ] ]
   , section [ class ("timerstate " ++ stateToClassName) ] [ h1 [] [ text timefmt ] ]
   , Html.map HistoryMsg (Html.lazy History.view model.history)
   , Html.lazy viewStats model.history
