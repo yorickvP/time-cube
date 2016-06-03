@@ -30,7 +30,7 @@
 .container {
 	border: 1px solid var(--border-col);
 }
-header {
+.scramble {
 	border-bottom: 1px solid var(--border-col);
 	background-color: var(--topbar-col);
 	margin-top: 0;
@@ -38,6 +38,10 @@ header {
 	padding-bottom: 0.5em;
 	flex: 1 100%;
 	text-align: center;
+}
+.scramble * {
+	padding: 0 !important;
+	margin: 0 !important;
 }
 html, body {
 	background-color: var(--bg-col);
@@ -70,8 +74,14 @@ a {
 	font-weight: bold;
 	visibility: visible;
 }
-.timerstate, .oldtimes, .stats {
+.timerstate {
+	flex: 1 100%;
+	border-bottom: 1px solid var(--border-col);
+}
+.oldtimes, .stats {
 	flex: 1 0;
+	max-height: 18em;
+	overflow-y: auto;
 }
 .timerstate, .oldtimes {
 	border-right: 1px solid var(--border-col);
