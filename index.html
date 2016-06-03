@@ -1,0 +1,36 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+ <meta charset="UTF-8">
+ <title>Time Cube</title>
+ <script type="text/javascript" src="timer.js"></script>
+ <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body></body>
+<script type="text/javascript">
+var storedState = localStorage.getItem('timer-state');
+
+var thingy = Elm.Timer.fullscreen(storedState ? JSON.parse(storedState) : null);
+
+thingy.ports.setStorage.subscribe(function(state) {
+    localStorage.setItem('timer-state', JSON.stringify(state));
+});
+thingy.ports.scrollBottom.subscribe(function(selector) {
+	setTimeout(function() {
+		var s = document.querySelector(selector);
+		s.scrollTop = s.scrollHeight;
+	}, 50);
+});
+thingy.ports.alert.subscribe(function(msg) {
+	alert(msg);
+})
+var scrambleworker = new Worker("scramble.js");
+thingy.ports.scrambleReq.subscribe(function({len, val: type}) {
+	console.log("getting scramble", len, type)
+	scrambleworker.postMessage({len, type});
+});
+scrambleworker.onmessage = ({data}) => {
+	thingy.ports.scrambleRes.send(data.scramble);
+};
+</script>
+</html>
