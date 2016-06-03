@@ -29,8 +29,7 @@ type alias OldTime = {
   startTime : Time,
   comment : String,
   flag : Flag,
-  scramble : Maybe String,
-  scrambleType : Scrambles.ScrType
+  scrambleType : Scrambles.Model
 }
 
 type alias SerialOldTime = {
@@ -38,8 +37,7 @@ type alias SerialOldTime = {
   startTime : Time,
   comment : String,
   flag : Int,
-  scramble : Maybe String,
-  scrambleType : Scrambles.ScrType -- load from scrambles array?
+  scrambleType : Scrambles.Model -- load from scrambles array?
 }
 
 type Flag = None | Penalty2 | DNF
@@ -84,9 +82,9 @@ rmTime : OldTimeID -> List OldTime -> List OldTime
 rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 
   --  oldTime = History.OldTime m.time m.startTime "" History.None m.curScramble (Just m.scrambleType)
-addTime : {time : Time, startTime: Time, scramble : Maybe String, scrambleType : Scrambles.ScrType} -> Model -> Model
+addTime : {time : Time, startTime: Time, scramble : Scrambles.Model} -> Model -> Model
 addTime tm =
-    let ot = OldTime tm.time tm.startTime "" None tm.scramble tm.scrambleType
+    let ot = OldTime tm.time tm.startTime "" None tm.scramble
     in (::) ot
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =

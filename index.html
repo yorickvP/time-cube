@@ -23,10 +23,11 @@ thingy.ports.scrollBottom.subscribe(function(selector) {
 });
 var scrambleworker = new Worker("scramble.js");
 thingy.ports.scrambleReq.subscribe(function({len, val: type}) {
+	console.log("getting scramble", len, type)
 	scrambleworker.postMessage({len, type});
 });
 scrambleworker.onmessage = ({data}) => {
-	thingy.ports.scrambles.send(data.scramble);
+	thingy.ports.scrambleRes.send(data.scramble);
 };
 </script>
 </html>
