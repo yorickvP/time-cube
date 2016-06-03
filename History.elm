@@ -9,6 +9,7 @@ import String exposing (slice, padRight)
 import Date
 import Date.Format
 import Scrambles
+import Util exposing ((<$>))
 
 
 
@@ -45,6 +46,9 @@ type alias OldTimeID = Int
 type alias Model = List OldTime
 type alias SerialModel = List SerialOldTime
 
+port alert : String -> Cmd msg
+
+
 serializeTime : OldTime -> SerialOldTime
 serializeTime t = {t | flag = mapFlagtoint t.flag}
 deserializeTime : SerialOldTime -> OldTime
@@ -65,6 +69,7 @@ empty = []
 type Msg
   = ToggleFlag Flag OldTimeID
   | DeleteTime OldTimeID
+  | GetScramble OldTimeID
 
 
 setFlag : Flag -> OldTimeID -> List OldTime -> List OldTime
@@ -81,6 +86,9 @@ setFlag fl id otm =
 rmTime : OldTimeID -> List OldTime -> List OldTime
 rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 
+lookupTime : OldTimeID -> List OldTime -> Maybe OldTime
+lookupTime id list = snd <$> List.head (List.indexedMap (,) list |> List.filter (fst >> ((==) id)))
+
   --  oldTime = History.OldTime m.time m.startTime "" History.None m.curScramble (Just m.scrambleType)
 addTime : {time : Time, startTime: Time, scramble : Scrambles.Model} -> Model -> Model
 addTime tm =
@@ -93,6 +101,8 @@ update msg model =
         (setFlag flag id model, Cmd.none)
     DeleteTime id ->
         (rmTime id model, Cmd.none)
+    GetScramble id ->
+        (model, alert <| Maybe.withDefault "" <| (Scrambles.toString << (.scrambleType)) <$> (lookupTime id model))
 
 
 type alias Stats =
@@ -211,6 +221,7 @@ view oldTimes = let
     [ span [class "textlabel"] [text <| pretty <| getTimeWithPenalty t]
     , flagElm Penalty2 i t "+2"
     , flagElm DNF i t "DNF"
+    , a [class "getscramble", href "#", onClick (GetScramble i)] [text "scramble?"]
     , a [class "delete", href "#", onClick (DeleteTime i)] [text "x"]
     ]
   in

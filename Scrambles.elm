@@ -1,4 +1,4 @@
-port module Scrambles exposing (Model, empty, deserialize, serialize, Msg, update, view, ScrType, SerialModel, newscramble)
+port module Scrambles exposing (Model, empty, deserialize, serialize, Msg, update, view, ScrType, SerialModel, newscramble, toString)
 
 import Html exposing (Html, button, div, text, h1, ul, li, a, span, header, section, select, optgroup, option)
 import Html.Attributes exposing (value, selected, class, property)
@@ -82,6 +82,15 @@ default : ScrType
 default =
     ScrType "random state" "333" 0
 
+toString : Model -> String
+toString model =
+  let
+    cur_scramble = model.scrtype
+    ( cur_group_name, cur_group_vals ) =
+        Maybe.withDefault ( "", [] ) <| fst <$> lookup cur_scramble.val
+    scramble = Maybe.withDefault "unknown" <| model.cur
+  in
+    cur_group_name ++ " (" ++ cur_scramble.name ++ "): " ++ scramble
 
 
 

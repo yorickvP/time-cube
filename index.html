@@ -21,6 +21,9 @@ thingy.ports.scrollBottom.subscribe(function(selector) {
 		s.scrollTop = s.scrollHeight;
 	}, 50);
 });
+thingy.ports.alert.subscribe(function(msg) {
+	alert(msg);
+})
 var scrambleworker = new Worker("scramble.js");
 thingy.ports.scrambleReq.subscribe(function({len, val: type}) {
 	console.log("getting scramble", len, type)
