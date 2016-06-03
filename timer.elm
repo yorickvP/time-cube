@@ -47,12 +47,13 @@ type alias Model = {
   state : TimerState,
   totalInspection : Time,
   scramble : Scrambles.Model,
-  history : History.Model
+  history : History.Model,
+  inspectionTime : Time
 }
 
 
 deserialize : SerialModel -> Model
-deserialize st = Model 0 0 Stopped (15 * second) (Scrambles.deserialize st.scrType) (History.deserialize st.oldTimes)
+deserialize st = Model 0 0 Stopped (15 * second) (Scrambles.deserialize st.scrType) (History.deserialize st.oldTimes) 0
 
 empty : SerialModel
 empty = SerialModel History.empty Scrambles.empty
@@ -94,7 +95,8 @@ addOldTime m =
     updateHistory m <| History.addTime {
       time = m.time,
       startTime = m.startTime,
-      scramble = m.scramble
+      scramble = m.scramble,
+      inspectTime = m.inspectionTime
     } m.history
 
 scrollOldTimes : Cmd Msg
@@ -123,7 +125,7 @@ update msg model =
         Running ->
           withGetScramble <| withSetStorage <| (addOldTime { model | state = Waiting }, scrollOldTimes)
         Inspecting ->
-          upM { model | state = Running, startTime = model.time + model.startTime, time = 0 }
+          upM { model | state = Running, startTime = model.time + model.startTime, time = 0, inspectionTime = model.time }
         _ -> donothing
     Space Up ->
       case model.state of
@@ -168,8 +170,14 @@ subscriptions m =
 getRunTime : Model -> Float
 getRunTime m = (toFloat <| round (m.time / 10)) / 100
 
-getInspectTime : Model -> Int
-getInspectTime m = ceiling ((m.totalInspection - m.time) / 1000)
+getInspectTime : Model -> String
+getInspectTime m =
+  let
+    curtime = m.totalInspection - m.time
+  in
+    if curtime < (-2 * second) then "DNF"
+    else if curtime < 0 then "+2"
+    else toString <| ceiling (curtime / 1000)
 
 viewStats : History.Model -> Html Msg
 viewStats history =
@@ -205,11 +213,12 @@ view : Model -> Html Msg
 view model = let
   timefmt = case model.state of
     Stopped -> if model.startTime == 0 then "Ready" else pretty model.time
-    Inspecting -> toString <| getInspectTime model
+    Inspecting -> getInspectTime model
     _ -> pretty model.time
+  inspectingpenalty = model.state == Inspecting && model.time > 15 * second
   stateToClassName = case model.state of
     Stopped -> "stopped"
-    Inspecting -> "inspecting"
+    Inspecting -> "inspecting" ++ (if inspectingpenalty then " penalty" else "")
     Running -> "running"
     Waiting -> "stopped"
   in

@@ -89,10 +89,14 @@ rmTime id times = (List.take id times) ++ (List.drop (id + 1) times)
 lookupTime : OldTimeID -> List OldTime -> Maybe OldTime
 lookupTime id list = snd <$> List.head (List.indexedMap (,) list |> List.filter (fst >> ((==) id)))
 
-  --  oldTime = History.OldTime m.time m.startTime "" History.None m.curScramble (Just m.scrambleType)
-addTime : {time : Time, startTime: Time, scramble : Scrambles.Model} -> Model -> Model
+addTime : {time : Time, startTime: Time, scramble : Scrambles.Model, inspectTime : Time} -> Model -> Model
 addTime tm =
-    let ot = OldTime tm.time tm.startTime "" None tm.scramble
+    let
+      penaltyflag =
+        if tm.inspectTime > 17 * second then DNF
+        else if tm.inspectTime > 15 * second then Penalty2
+        else None
+      ot = OldTime tm.time tm.startTime "" penaltyflag tm.scramble
     in (::) ot
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =

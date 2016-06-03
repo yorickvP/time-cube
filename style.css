@@ -53,6 +53,9 @@ a {
 .inspecting, .running {
 	color: var(--running-col);
 }
+.inspecting.penalty {
+	color: var(--color-red);
+}
 .stopped {
 	color: var(--stopped-col);
 }
